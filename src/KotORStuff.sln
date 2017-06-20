@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.25420.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResourceBundleLib", "ResourceBundleLib\ResourceBundleLib.csproj", "{F9AA6F14-FC3C-4F5E-B167-8C7D894C1D08}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bif", "bif\bif.csproj", "{44AB0735-3F1B-4872-84A4-806AD020800C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "erf", "erf\erf.csproj", "{AB14711F-8B96-4949-9D2B-2FA6577BD939}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F9AA6F14-FC3C-4F5E-B167-8C7D894C1D08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F9AA6F14-FC3C-4F5E-B167-8C7D894C1D08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F9AA6F14-FC3C-4F5E-B167-8C7D894C1D08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F9AA6F14-FC3C-4F5E-B167-8C7D894C1D08}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44AB0735-3F1B-4872-84A4-806AD020800C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44AB0735-3F1B-4872-84A4-806AD020800C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44AB0735-3F1B-4872-84A4-806AD020800C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44AB0735-3F1B-4872-84A4-806AD020800C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
