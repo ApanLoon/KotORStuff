@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "bif", "bif\bif.csproj", "{4
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "erf", "erf\erf.csproj", "{AB14711F-8B96-4949-9D2B-2FA6577BD939}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "tpc", "tpc\tpc.csproj", "{E98D042A-6EBD-47E2-A2A3-99EB67EA2935}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TPCLib", "TPCLib\TPCLib.csproj", "{06AF0FBD-A273-46AB-93D7-7EC660E82178}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +31,14 @@ Global
 		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AB14711F-8B96-4949-9D2B-2FA6577BD939}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E98D042A-6EBD-47E2-A2A3-99EB67EA2935}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E98D042A-6EBD-47E2-A2A3-99EB67EA2935}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E98D042A-6EBD-47E2-A2A3-99EB67EA2935}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E98D042A-6EBD-47E2-A2A3-99EB67EA2935}.Release|Any CPU.Build.0 = Release|Any CPU
+		{06AF0FBD-A273-46AB-93D7-7EC660E82178}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{06AF0FBD-A273-46AB-93D7-7EC660E82178}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{06AF0FBD-A273-46AB-93D7-7EC660E82178}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{06AF0FBD-A273-46AB-93D7-7EC660E82178}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
