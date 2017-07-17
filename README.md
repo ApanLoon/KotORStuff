@@ -7,3 +7,6 @@ A command line tool that extracts resources from KeyTable/BIF files.
 
 ## erf
 A command line tool that extracts resources from ERF files.
+
+## tpc
+A command line tool that converts TPC images to PNG.
