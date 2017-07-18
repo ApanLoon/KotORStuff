@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -96,7 +97,7 @@ namespace TPCLib
         /// <summary>
         /// Float of unknown purpose. Mostly this is 1f, but other values are used in KotOR and TSL.
         /// </summary>
-        public float Unknown1;
+        public float Unknown1 = 1f;
 
         /// <summary>
         /// The width, in number of pixels, of the largest image in the file.
@@ -111,7 +112,7 @@ namespace TPCLib
         /// <summary>
         /// Specifies how many colour channels are used in the images. It also specifies the respective ordering of the channel data.
         /// </summary>
-        public EncodingFormat Encoding;
+        public EncodingFormat Format;
 
         /// <summary>
         /// The number of mip maps. Each consecutive sub image is reduced in half on width and height. The first sub image is actually the full size image.
@@ -144,8 +145,7 @@ namespace TPCLib
         public bool isCubeMap;
         public bool isCompressed;
 
-        public string[] txi;
-        public TXIValueDictionary TXIValue = new TXIValueDictionary();
+        public TXIValueDictionary TXI;
 
         public long streamSize;
         #endregion Fields
@@ -170,7 +170,7 @@ namespace TPCLib
                 int stride = 0;
                 byte[] buf = null;
 
-                EncodingFormat encoding = Encoding;
+                EncodingFormat encoding = Format;
 
                 if (isCompressed && encoding == EncodingFormat.RGB)
                 {
@@ -225,7 +225,7 @@ namespace TPCLib
                         }
                         break;
                     default:
-                        throw new Exception(string.Format("Can't convert from format {0}.", Encoding));
+                        throw new Exception(string.Format("Can't convert from format {0}.", Format));
                 }
                 if (buf == null)
                 {
@@ -277,8 +277,26 @@ namespace TPCLib
             }
         }
 
+        public TPC(bool isCompressed, EncodingFormat format, int subImageCount)
+        {
+            this.isCompressed = isCompressed;
+            this.Format = format;
+            this.SubImageCount = (byte)subImageCount;
+
+            if (isCompressed)
+            {
+                throw new Exception("DXT compression is not yet supported for new TPCs.");
+            }
+
+            // Set up pixel format details:
+            DeterminePixelFormat();
+
+            TXI = new TXIValueDictionary();
+        }
+
         #endregion Construction
 
+        #region ReadTPC
         protected void ReadHeader(BinaryReader reader)
         {
             ReadDataSize = reader.ReadUInt32();  // Number of bytes for the compressed pixel data in one full image or zero if the image is not compressed
@@ -287,7 +305,7 @@ namespace TPCLib
             Width = reader.ReadUInt16();    // Maximum 0x8000?
             Height = reader.ReadUInt16();   // Maximum 0x8000?
 
-            Encoding = (EncodingFormat)reader.ReadByte(); // TODO: Catch error
+            Format = (EncodingFormat)reader.ReadByte(); // TODO: Catch error
             SubImageCount = reader.ReadByte();
 
             reader.ReadBytes(114);                 // Unknown
@@ -321,7 +339,8 @@ namespace TPCLib
                 int w = Width;
                 int h = Height;
                 int i = 0;
-                while (!(w == 0 && h == 0))
+                // TODO: What is the proper condition for when to ignore the SubImageCount and go on until 0x0?
+                while ((i < SubImageCount) || (isCompressed && !(w == 0 && h == 0)))
                 {
                     TotalDataSize += GetDataSizeOfSubImage(w, h, BytesPerPixel, Quantization);
                     w >>= 1;
@@ -341,7 +360,7 @@ namespace TPCLib
         {
             if (!isCompressed)
             {
-                switch (Encoding)
+                switch (Format)
                 {
                     case EncodingFormat.Gray:
                         BytesPerPixel = 1f;
@@ -364,13 +383,13 @@ namespace TPCLib
                         BaseImageDataSize = (uint)(Width * Height * 4);
                         break;
                     default:
-                        throw new Exception(string.Format("Unknown TPC raw encoding: {0} ({1}), {2}x{3}, {4}", Encoding, ReadDataSize, Width, Height, (uint)SubImageCount));
+                        throw new Exception(string.Format("Unknown TPC raw encoding: {0} ({1}), {2}x{3}, {4}", Format, ReadDataSize, Width, Height, (uint)SubImageCount));
                 }
             }
             else
             {
                 // Compressed:
-                switch (Encoding)
+                switch (Format)
                 {
                     case EncodingFormat.RGB: // S3TC DXT1
                         BytesPerPixel = 8f / 16; // 8 bytes per 16 pixels
@@ -381,7 +400,7 @@ namespace TPCLib
                         Quantization = 4;
                         break;
                     default:
-                        throw new Exception(string.Format("Unknown TPC encoding: {0} ({1})", Encoding, BaseImageDataSize));
+                        throw new Exception(string.Format("Unknown TPC encoding: {0} ({1})", Format, BaseImageDataSize));
                 }
             }
         }
@@ -397,7 +416,7 @@ namespace TPCLib
         {
             ImageCount = 1;
 
-            if (TXIValue["cube"] == "1")
+            if (TXI["cube"] == "1")
             {
                 //TODO: Some "cube maps" have only four sides
                 isCubeMap = true;
@@ -405,10 +424,10 @@ namespace TPCLib
                 ImageCount = 6;
             }
 
-            if (TXIValue["proceduretype"] == "cycle")
+            if (TXI["proceduretype"] == "cycle")
             {
-                UInt16 numx = (TXIValue["numx"] == "") ? (UInt16)0 : UInt16.Parse(TXIValue["numx"]);
-                UInt16 numy = (TXIValue["numy"] == "") ? (UInt16)0 : UInt16.Parse(TXIValue["numy"]);
+                UInt16 numx = (TXI["numx"] == "") ? (UInt16)0 : UInt16.Parse(TXI["numx"]);
+                UInt16 numy = (TXI["numy"] == "") ? (UInt16)0 : UInt16.Parse(TXI["numy"]);
                 if (numx <= 0 || numy <= 0)
                 {
                     throw new Exception("numx and numy must be greater than zero in a cycle procedure.");
@@ -459,7 +478,7 @@ namespace TPCLib
                 {
                     // If the texture width is a power of two, the texture memory layout is "swizzled"
                     bool widthPOT = (subImage.Width & (subImage.Width - 1)) == 0;
-                    bool swizzled = (Encoding == EncodingFormat.BGRA) && widthPOT;
+                    bool swizzled = (Format == EncodingFormat.BGRA) && widthPOT;
 
                     byte[] tmp = reader.ReadBytes((int)subImage.DataSize);
                     if (tmp.GetLength(0) != subImage.DataSize)
@@ -561,97 +580,8 @@ namespace TPCLib
                 reader.BaseStream.CopyTo(ms);
                 byte[] buf = ms.ToArray();
                 string s = System.Text.Encoding.ASCII.GetString(buf);
-                txi = s.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries);
+                TXI = new TXIValueDictionary (s.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries));
             }
-
-            string name;
-            string value;
-            int i;
-            int lineIndex = 0;
-            while (lineIndex < txi.Length)
-            {
-                i = txi[lineIndex].IndexOf(' ');
-                if (i == -1)
-                {
-                    name = txi[lineIndex].ToLower();
-                    value = "";
-                }
-                else
-                {
-                    name = txi[lineIndex].Substring(0, i).Trim().ToLower();
-                    value = txi[lineIndex].Substring(i + 1).Trim();
-                }
-
-                switch (name)
-                {
-                    case "channelscale":
-                    case "channeltranslate":
-                        value += " " + txi[++lineIndex];
-                        value += " " + txi[++lineIndex];
-                        value += " " + txi[++lineIndex];
-                        value += " " + txi[++lineIndex];
-                        break;
-                }
-
-                TXIValue.Add(name, value);
-                lineIndex++;
-            }
-
-
-            // Spotted tags, names are case insensitive:
-            //
-            // cube <bool>                                     (0, 1)
-
-            // isbumpmap <bool>
-            // bumpmapscaling <value>                          (1, 2, 3, 5)
-
-            // isdefusebumpmap <bool>
-            // isspecularbumpmap <bool>
-
-            // envmaptexture <string>                          (CM_dsk, CM_jedcom, ...)
-
-            // blending <string>                               (additive, punchthrough)
-
-            // bumpyshinytexture <string>                      (CM_QATEAST, ...)
-            // bumpmaptexture <string>                         (LQA_dewbackBMP, ...)
-
-            // proceduretype cycle
-            // numx 2
-            // numy 2
-            // fps 16
-
-            // proceduretype arturo
-            // channelscale 4
-            // 0.2
-            // 0.2
-            // 0.2
-            // 0.2
-            // channeltranslate 4
-            // 0.5
-            // 0.7
-            // 0.6
-            // 0.5
-            // distort 2
-            // arturowidth 32
-            // arturoheight 32
-            // distortionamplitude 4
-            // speed 60
-            // defaultheight 32
-            // defaultwidth 32
-
-            // downsamplemin <value>                           (1)
-            // downsamplemax <value>                           (1)
-
-            // mipmap <value>                                  (0)
-
-            // islightmap <bool>
-            // compresstexture <value>                         (0)
-
-            // clamp <value>                                   (3)
-
-            // decal <bool>                                    (0/1)
-
-            // wateralpha <float>                              (0.40)
         }
 
         protected void Decompress()
@@ -664,7 +594,7 @@ namespace TPCLib
                 foreach (SubImage subImage in image.SubImages)
                 {
                     DXT.Format format;
-                    switch (Encoding)
+                    switch (Format)
                     {
                         case EncodingFormat.RGB:
                             format = DXT.Format.DXT1;
@@ -673,7 +603,7 @@ namespace TPCLib
                             format = DXT.Format.DXT5;
                             break;
                         default:
-                            throw new Exception("Unable to decompress encoding " + Encoding);
+                            throw new Exception("Unable to decompress encoding " + Format);
                     }
                     Decompress(subImage, format);
                 }
@@ -717,6 +647,149 @@ namespace TPCLib
             subImage.DataSize = tmp.DataSize;
             subImage.Data = tmp.Data;
         }
+        #endregion ReadTPC
+
+        #region CreateTPC
+        public void AddImage (Bitmap bitmap)
+        {
+            Image image = new Image();
+
+            if (ImageCount == 0)
+            {
+                // This is the first image, extract the Width and Height from it
+                Width = (UInt16)bitmap.Width;
+                Height = (UInt16)bitmap.Height;
+            }
+
+            UInt16 w = Width;
+            UInt16 h = Height;
+            for (int subImageIndex = 0; subImageIndex < SubImageCount; subImageIndex++)
+            {
+                SubImage subImage = new SubImage();
+                subImage.Width = w;
+                subImage.Height = h;
+                subImage.CanvasWidth = (UInt16)(Math.Ceiling((float)Math.Max(subImage.Width, (UInt16)1) / Quantization) * Quantization);
+                subImage.CanvasHeight = (UInt16)(Math.Ceiling((float)Math.Max(subImage.Height, (UInt16)1) / Quantization) * Quantization);
+                subImage.DataSize = (UInt32)Math.Ceiling(subImage.CanvasWidth * subImage.CanvasHeight * BytesPerPixel);
+                subImage.Data = new byte[subImage.DataSize];
+
+                // Convert pixel format
+                if (isCompressed)
+                {
+                    // Compress DXT
+                }
+                else
+                {
+                    for (int y = 0; y < h; y++)
+                    {
+                        for (int x = 0; x < w; x++)
+                        {
+                            Color c = bitmap.GetPixel(x, y);
+                            switch (Format)
+                            {
+                                case EncodingFormat.Gray:
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel)] = (byte)((c.R + c.G + c.B) / 3);
+                                    break;
+                                case EncodingFormat.RGB:
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 0] = c.R;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 1] = c.G;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 2] = c.B;
+                                    break;
+                                case EncodingFormat.RGBA:
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 0] = c.R;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 1] = c.G;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 2] = c.B;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 3] = c.A;
+                                    break;
+                                case EncodingFormat.BGRA:
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 0] = c.B;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 1] = c.G;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 2] = c.R;
+                                    subImage.Data[(int)(((h - y - 1) * w + x) * BytesPerPixel) + 3] = c.A;
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                // Add to pixeldata
+                // TODO: This is not very memory or speed efficient, freeing up and re-constructing byte arrays like a mad man.
+                int offset;
+                if (PixelData == null)
+                {
+                    offset = 0;
+                    PixelData = new byte[subImage.DataSize];
+                }
+                else
+                {
+                    offset = PixelData.GetLength(0);
+                    byte[] buf = new byte[offset + subImage.DataSize];
+                    for (int i = 0; i < offset; i++)
+                    {
+                        buf[i] = PixelData[i];
+                    }
+                    PixelData = buf;
+                }
+                for (int i = 0; i < subImage.DataSize; i++)
+                {
+                    PixelData[offset + i] = subImage.Data[i];
+                }
+
+                // Prepare for next sub image
+                w >>= 1;
+                h >>= 1;
+                bitmap = ScaleBitmap(bitmap, w, h, InterpolationMode.HighQualityBicubic);
+            }
+        }
+
+        public Bitmap ScaleBitmap (System.Drawing.Image image, UInt16 width, UInt16 height, InterpolationMode interpolationMode)
+        {
+            var destRect = new Rectangle(0, 0, width, height);
+            var destImage = new Bitmap(width, height);
+
+            destImage.SetResolution(image.HorizontalResolution, image.VerticalResolution);
+
+            using (var graphics = Graphics.FromImage(destImage))
+            {
+                graphics.CompositingMode = CompositingMode.SourceCopy;
+                graphics.CompositingQuality = CompositingQuality.HighQuality;
+                graphics.InterpolationMode = interpolationMode;
+                graphics.SmoothingMode = SmoothingMode.HighQuality;
+                graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                using (var wrapMode = new ImageAttributes())
+                {
+                    wrapMode.SetWrapMode(WrapMode.TileFlipXY);
+                    graphics.DrawImage(image, destRect, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
+                }
+            }
+
+            return destImage;
+        }
+
+        public void Save(Stream outStream)
+        {
+            BinaryWriter writer = new BinaryWriter(outStream);
+
+            // Save header
+            writer.Write(isCompressed ? BaseImageDataSize : (UInt32)0);
+            writer.Write(Unknown1);
+            writer.Write(Width);
+            writer.Write(Height);
+            writer.Write((byte)Format);
+            writer.Write(SubImageCount);
+            for (int i = 0; i < 114; i++)
+            {
+                writer.Write((byte)0);
+            }
+
+            // Save pixel data
+            writer.Write(PixelData);
+
+            // Save TXI
+            TXI.Save(writer);
+        }
+        #endregion CreateTPC
 
         public static void Debug(string msg)
         {
