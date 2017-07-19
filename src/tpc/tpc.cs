@@ -29,6 +29,7 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
         static int                subImageIndex  = 0;
         static bool               dumpTXI        = false;
         static List<string>       txi            = new List<string>();
+        static string             txiPath        = "";
         static bool               useCompression = false;
         static TPC.EncodingFormat format         = TPC.EncodingFormat.RGB;
         static bool               showHelp       = false;
@@ -74,6 +75,9 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                                           txi.Add (v);
                                       }
                                   } },
+
+                { "txipath=",   "Create this separate TXI file when reading a TPC or read this separate TXI file when creating a TPC.",
+                                 v => txiPath = v },
 
                 { "c|compress",  "Use DXT compression when creating new TPC. ",
                                  v => useCompression = v != null },
@@ -141,7 +145,13 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
         static void ConvertTPC(string inPath)
         {
             TPC tpc = new TPC(inPath);
+            PrintInfo(inPath, tpc);
+            WriteTXI(inPath, tpc);
+            WriteImage(inPath, tpc);
+        }
 
+        private static void PrintInfo(string inPath, TPC tpc)
+        {
             if (outputToFile) // Only output this if we are not using stdout for the data.
             {
                 Console.WriteLine(string.Format("{0} {1,-9} {2, 8} {3, -4} {4,9} {5}",
@@ -162,16 +172,44 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                 //    inPath
                 //    );
 
-                if (dumpTXI)
-                {
-                    foreach (string key in tpc.TXI)
-                    {
-                        Console.WriteLine(key + " " + tpc.TXI[key]);
-                    }
-                }
+                //if (dumpTXI)
+                //{
+                //    foreach (string key in tpc.TXI)
+                //    {
+                //        Console.WriteLine(key + " " + tpc.TXI[key]);
+                //    }
+                //}
+            }
+        }
+
+        private static void WriteTXI(string inPath, TPC tpc)
+        {
+            if (!dumpTXI)
+            {
+                return;
             }
 
-            if (outExtension == "" || outExtension == "none" || !imageFormats.ContainsKey (outExtension))
+            Stream outStream;
+
+            if (outputToFile)
+            {
+                string path = (txiPath != "") ? txiPath : Path.GetFileNameWithoutExtension(inPath) + ".txi";
+                outStream = new FileStream(path, FileMode.Create);
+            }
+            else
+            {
+                outStream = Console.OpenStandardOutput();
+            }
+
+            using (BinaryWriter writer = new BinaryWriter(outStream))
+            {
+                tpc.TXI.Save(writer);
+            }
+        }
+
+        private static void WriteImage(string inPath, TPC tpc)
+        {
+            if (outExtension == "" || outExtension == "none" || !imageFormats.ContainsKey(outExtension))
             {
                 return;
             }
