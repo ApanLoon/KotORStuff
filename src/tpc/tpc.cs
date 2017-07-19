@@ -29,6 +29,7 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
         static int                subImageIndex  = 0;
         static bool               dumpTXI        = false;
         static List<string>       txi            = new List<string>();
+        static string             txiPath        = "";
         static bool               useCompression = false;
         static TPC.EncodingFormat format         = TPC.EncodingFormat.RGB;
         static bool               showHelp       = false;
@@ -74,6 +75,9 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                                           txi.Add (v);
                                       }
                                   } },
+
+                { "txipath=",   "Create this separate TXI file when reading a TPC or read this separate TXI file when creating a TPC.",
+                                 v => txiPath = v },
 
                 { "c|compress",  "Use DXT compression when creating new TPC. ",
                                  v => useCompression = v != null },
@@ -138,40 +142,43 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
             PauseOnExit();
         }
 
+        #region ReadTPC
         static void ConvertTPC(string inPath)
         {
             TPC tpc = new TPC(inPath);
+            PrintInfo(inPath, tpc);
+            WriteTXI(inPath, tpc);
+            WriteImage(inPath, tpc);
+        }
 
-            if (outputToFile) // Only output this if we are not using stdout for the data.
+        private static void WriteTXI(string inPath, TPC tpc)
+        {
+            if (!dumpTXI)
             {
-                Console.WriteLine(string.Format("{0} {1,-9} {2, 8} {3, -4} {4,9} {5}",
-                    flagsToString(tpc),
-                    string.Format("{0,4} {1,4}", tpc.Width, tpc.Height),
-                    string.Format("{0, 2} {1, 2} {2, 2}", tpc.ImageCount, tpc.SubImageCount, tpc.totalSubImageCount),
-                    tpc.Format,
-                    tpc.Unknown1,
-                    inPath));
-
-                //Console.WriteLine("{0} {1, 20} {2, 10} {3, -9} {4, 8} {5, -4} {6}",
-                //    flagsToString(tpc),
-                //    string.Format("{0:x}/{1:x}/{2:x}", tpc.ReadDataSize, tpc.BaseImageDataSize, tpc.streamSize),
-                //    tpc.Unknown1,
-                //    string.Format("{0,4} {1,4}", tpc.Width, tpc.Height),
-                //    string.Format("{0, 2} {1, 2} {2, 2}", tpc.ImageCount, tpc.SubImageCount, tpc.totalSubImageCount),
-                //    tpc.Encoding,
-                //    inPath
-                //    );
-
-                if (dumpTXI)
-                {
-                    foreach (string key in tpc.TXI)
-                    {
-                        Console.WriteLine(key + " " + tpc.TXI[key]);
-                    }
-                }
+                return;
             }
 
-            if (outExtension == "" || outExtension == "none" || !imageFormats.ContainsKey (outExtension))
+            Stream outStream;
+
+            if (outputToFile)
+            {
+                string path = (txiPath != "") ? txiPath : Path.GetFileNameWithoutExtension(inPath) + ".txi";
+                outStream = new FileStream(path, FileMode.Create);
+            }
+            else
+            {
+                outStream = Console.OpenStandardOutput();
+            }
+
+            using (BinaryWriter writer = new BinaryWriter(outStream))
+            {
+                tpc.TXI.Save(writer);
+            }
+        }
+
+        private static void WriteImage(string inPath, TPC tpc)
+        {
+            if (outExtension == "" || outExtension == "none" || !imageFormats.ContainsKey(outExtension))
             {
                 return;
             }
@@ -224,7 +231,9 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                 throw error;
             }
         }
+        #endregion ReadTPC
 
+        #region WriteTPC
         static void CreateTPC()
         {
             if (outPath == "")
@@ -232,13 +241,20 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                 throw new Exception("outpath must be specified when creating TPCs.");
             }
 
-            if (subImageIndex == 0)
-            {
-                subImageIndex = 1;
-            }
-
             TPC tpc = new TPC(useCompression, format, subImageIndex);
+            AddTXI(tpc);
+            AddImages(tpc);
+            WriteTPC(tpc);
+            PrintInfo(outPath, tpc);
+        }
 
+        private static void AddTXI(TPC tpc)
+        {
+            if (txiPath != "")
+            {
+                string s = File.ReadAllText(txiPath);
+                tpc.TXI.Add(s.Split(new string[] { "\r\n" }, StringSplitOptions.RemoveEmptyEntries));
+            }
             foreach (string s in txi)
             {
                 int i = s.IndexOf(' ');
@@ -250,13 +266,23 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
                 string value = s.Substring(i + 1);
                 tpc.TXI[key] = value;
             }
+        }
 
+        private static void AddImages(TPC tpc)
+        {
+            if (subImageIndex == 0)
+            {
+                subImageIndex = 1;
+            }
             foreach (string inPath in inPaths)
             {
                 Bitmap bitmap = new Bitmap(inPath);
                 tpc.AddImage(bitmap);
             }
+        }
 
+        private static void WriteTPC(TPC tpc)
+        {
             Stream outStream;
             if (outputToFile)
             {
@@ -272,35 +298,39 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
             outStream.Flush();
             outStream.Close();
         }
+        #endregion WriteTPC
 
-        static string HexDump (byte[] buf, int length)
+        private static void PrintInfo(string inPath, TPC tpc)
         {
-            string hexDump = "";
-            int address = 0;
-            string ascii;
-            string bytes;
-            while (address < length)
+            if (outputToFile) // Only output this if we are not using stdout for the data.
             {
-                bytes = "";
-                ascii = "";
-                for (int i = 0; i < Math.Min(16, buf.Length - address); i++)
-                {
-                    bytes += String.Format("{1}{0:x2} ", buf[address + i], (i != 0)  && (i % 8 == 0) ? " " : "");
-                    if (buf[address + i] >= 0x20 && buf[address + i] <= 0x7e)
-                    {
-                        ascii += Encoding.ASCII.GetChars(buf, address + i, 1)[0];
-                    }
-                    else
-                    {
-                        ascii += ".";
-                    }
-                }
-                hexDump += String.Format("{0:x8}: {1,-49} {2}\n", address, bytes, ascii);
-                address += 16;
-            }
-            return hexDump;
-        }
+                Console.WriteLine(string.Format("{0} {1,-9} {2, 8} {3, -4} {4,9} {5}",
+                    flagsToString(tpc),
+                    string.Format("{0,4} {1,4}", tpc.Width, tpc.Height),
+                    string.Format("{0, 2} {1, 2} {2, 2}", tpc.ImageCount, tpc.SubImageCount, tpc.totalSubImageCount),
+                    tpc.Format,
+                    tpc.Unknown1,
+                    inPath));
 
+                //Console.WriteLine("{0} {1, 20} {2, 10} {3, -9} {4, 8} {5, -4} {6}",
+                //    flagsToString(tpc),
+                //    string.Format("{0:x}/{1:x}/{2:x}", tpc.ReadDataSize, tpc.BaseImageDataSize, tpc.streamSize),
+                //    tpc.Unknown1,
+                //    string.Format("{0,4} {1,4}", tpc.Width, tpc.Height),
+                //    string.Format("{0, 2} {1, 2} {2, 2}", tpc.ImageCount, tpc.SubImageCount, tpc.totalSubImageCount),
+                //    tpc.Encoding,
+                //    inPath
+                //    );
+
+                //if (dumpTXI)
+                //{
+                //    foreach (string key in tpc.TXI)
+                //    {
+                //        Console.WriteLine(key + " " + tpc.TXI[key]);
+                //    }
+                //}
+            }
+        }
         static string flagsToString (TPC tpc)
         {
             return   (tpc.isCompressed ? "z" : "-")
@@ -344,6 +374,34 @@ Create a new TPC with one imag, two sub images and add some TXI attributes:
             Console.WriteLine("  Unknown1:                   Float value of unknown purpose.");
             Console.WriteLine();
             Console.WriteLine("  Full path to the file");
+        }
+
+        static string HexDump(byte[] buf, int length)
+        {
+            string hexDump = "";
+            int address = 0;
+            string ascii;
+            string bytes;
+            while (address < length)
+            {
+                bytes = "";
+                ascii = "";
+                for (int i = 0; i < Math.Min(16, buf.Length - address); i++)
+                {
+                    bytes += String.Format("{1}{0:x2} ", buf[address + i], (i != 0) && (i % 8 == 0) ? " " : "");
+                    if (buf[address + i] >= 0x20 && buf[address + i] <= 0x7e)
+                    {
+                        ascii += Encoding.ASCII.GetChars(buf, address + i, 1)[0];
+                    }
+                    else
+                    {
+                        ascii += ".";
+                    }
+                }
+                hexDump += String.Format("{0:x8}: {1,-49} {2}\n", address, bytes, ascii);
+                address += 16;
+            }
+            return hexDump;
         }
 
         static void PauseOnExit()
