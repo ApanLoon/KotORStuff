@@ -117,6 +117,31 @@ namespace TPCLib
 
         public TXIValueDictionary (string[] strings)
         {
+            Add(strings);
+        }
+        #endregion Construction
+
+        public void Add(string key, string value)
+        {
+            if (dictionary.ContainsKey(key))
+            {
+                // TODO: What to do with duplicate keys? Now it overwrites the old one.
+                Console.WriteLine("Duplicate key: " + key + " overwriting old value \"" + dictionary[key] + "\" with \"" + value + "\"");
+            }
+            else
+            {
+                sortedKeys.Add(key);
+            }
+            dictionary[key] = value;
+        }
+
+        /// <summary>
+        /// Adds a list of TXI attributes, on the original in-game form, i.e. using
+        /// multi-line attributes whenever needed. Multi-line attributes will be
+        /// converted to single line representation internally.
+        /// </summary>
+        public void Add(string[] strings)
+        {
             string name;
             string value;
             int i;
@@ -159,21 +184,6 @@ namespace TPCLib
                 Add(name, value);
                 lineIndex++;
             }
-        }
-        #endregion Construction
-
-        public void Add(string key, string value)
-        {
-            if (dictionary.ContainsKey(key))
-            {
-                // TODO: What to do with duplicate keys? Now it overwrites the old one.
-                Console.WriteLine("Duplicate key: " + key + " overwriting old value \"" + dictionary[key] + "\" with \"" + value + "\"");
-            }
-            else
-            {
-                sortedKeys.Add(key);
-            }
-            dictionary[key] = value;
         }
 
         public void Save(BinaryWriter writer)
